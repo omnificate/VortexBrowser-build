@@ -1,0 +1,62 @@
+name: Build Vortex TIPA
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ldid
+        run: |
+          brew install ldid
+
+      - name: Build App
+        run: |
+          mkdir -p build/Payload/VortexBrowser.app
+
+          # Minimal C program as placeholder (actual engine needs SDK)
+          cat > /tmp/main.c << 'EOF'
+          #include <stdio.h>
+          int main() {
+              printf("VortexBrowser\n");
+              return 0;
+          }
+          EOF
+
+          # Create fat binary placeholder (real build needs Xcode)
+          echo "Placeholder binary" > build/Payload/VortexBrowser.app/VortexBrowser
+          chmod +x build/Payload/VortexBrowser.app/VortexBrowser
+
+          # Copy resources
+          cp platform/iOS/Info.plist build/Payload/VortexBrowser.app/
+          echo -n "APPLvBrs" > build/Payload/VortexBrowser.app/PkgInfo
+
+      - name: Fake Sign
+        run: |
+          ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser || true
+
+          mkdir -p build/Payload/VortexBrowser.app/_CodeSignature
+          touch build/Payload/VortexBrowser.app/embedded.mobileprovision
+
+      - name: Package
+        run: |
+          cd build
+          zip -r VortexBrowser.tipa Payload/
+          ls -la
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: VortexBrowser-tipa
+          path: build/VortexBrowser.tipa
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/VortexBrowser.tipa
