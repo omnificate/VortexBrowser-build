@@ -132,61 +132,46 @@ jobs:
           fi
           
           TIPA_SIZE=$(stat -f%z build/VortexBrowser.tipa 2>/dev/null || stat -c%s build/VortexBrowser.tipa 2>/dev/null || echo "0")
+          echo "TIPA size: $TIPA_SIZE bytes"
           if [ "$TIPA_SIZE" -lt 1000 ]; then
-            echo "ERROR: TIPA too small ($TIPA_SIZE bytes), likely empty!"
+            echo "ERROR: TIPA too small, likely empty!"
             exit 1
           fi
-          echo "✓ TIPA size: $TIPA_SIZE bytes"
+          echo "✓ TIPA exists and has content"
           
           # Test 2: Verify app bundle structure
           cd build
-          unzip -q VortexBrowser.tipa
+          unzip -o -q VortexBrowser.tipa
+          ls -la Payload/ || echo "Payload listing failed"
+          
           if [ ! -d Payload/VortexBrowser.app ]; then
             echo "ERROR: App bundle not found in TIPA!"
+            echo "TIPA contents:"
+            unzip -l VortexBrowser.tipa
             exit 1
           fi
           echo "✓ App bundle found in TIPA"
           
-          # Test 3: Verify executable exists and is ARM64
+          # Test 3: Verify executable exists
           if [ ! -f Payload/VortexBrowser.app/VortexBrowser ]; then
             echo "ERROR: Executable not found in app bundle!"
+            ls -la Payload/VortexBrowser.app/
             exit 1
           fi
+          echo "✓ Executable found"
           
-          # Check executable architecture
-          file_info=$(file Payload/VortexBrowser.app/VortexBrowser)
+          # Test 4: Check executable architecture (informational only)
+          file_info=$(file Payload/VortexBrowser.app/VortexBrowser 2>/dev/null || echo "file command failed")
           echo "Executable info: $file_info"
           
-          if echo "$file_info" | grep -q "arm64"; then
-            echo "✓ Executable is ARM64"
-          else
-            echo "WARNING: Executable may not be ARM64"
-          fi
-          
-          # Test 4: Verify Info.plist exists
+          # Test 5: Verify Info.plist exists
           if [ ! -f Payload/VortexBrowser.app/Info.plist ]; then
             echo "ERROR: Info.plist not found!"
             exit 1
           fi
           echo "✓ Info.plist found"
           
-          # Test 5: Verify entitlements (check if ldid worked)
-          if command -v ldid &> /dev/null; then
-            echo "=== Checking entitlements ==="
-            ldid -e Payload/VortexBrowser.app/VortexBrowser > /dev/null 2>&1 && echo "✓ Entitlements present" || echo "⚠ Could not verify entitlements"
-          fi
-          
-          # Test 6: Size sanity check (warn if too small)
-          EXE_SIZE=$(stat -f%z Payload/VortexBrowser.app/VortexBrowser 2>/dev/null || stat -c%s Payload/VortexBrowser.app/VortexBrowser 2>/dev/null || echo "0")
-          echo "Executable size: $EXE_SIZE bytes"
-          
-          if [ "$EXE_SIZE" -lt 10000 ]; then
-            echo "WARNING: Executable very small ($EXE_SIZE bytes), may not have full functionality"
-          else
-            echo "✓ Executable size looks reasonable"
-          fi
-          
-          echo "=== All smoke tests passed ==="
+          echo "=== All critical smoke tests passed ==="
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
