@@ -66,6 +66,7 @@ private:
     CSSProperty parseProperty(const std::string& css);
     void skipWhitespace(const std::string& css);
     void skipComment(const std::string& css);
+    int calculateSpecificity(const std::string& selector);
 };
 
 class StyleEngine {
