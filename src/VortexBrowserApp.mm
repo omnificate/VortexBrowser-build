@@ -240,6 +240,16 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     NSLog(@"[Vortex] Application launching...");
+    
+    // Create window for pre-iOS 13 traditional lifecycle
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    
+    self.browserVC = [[VortexBrowserViewController alloc] init];
+    self.window.rootViewController = self.browserVC;
+    
+    [self.window makeKeyAndVisible];
+    
+    NSLog(@"[Vortex] Window created and visible");
     return YES;
 }
 
@@ -265,3 +275,12 @@
 }
 
 @end
+
+// MARK: - main() Entry Point
+
+int main(int argc, char * argv[]) {
+    @autoreleasepool {
+        NSLog(@"[Vortex] Starting Vortex Browser v1.0...");
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass([VortexAppDelegate class]));
+    }
+}
