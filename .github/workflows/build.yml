@@ -2,7 +2,8 @@ name: Build Vortex TIPA
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -16,59 +17,29 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install ldid
-        run: |
-          brew install ldid
+        run: brew install ldid
 
-      - name: Build App
+      - name: Build App Structure
         run: |
           mkdir -p build/Payload/VortexBrowser.app
-
-          # Create a proper Mach-O binary (placeholder for real engine)
-          # Using echo as placeholder since we don't have iOS SDK headers
           echo "VortexBrowser Placeholder" > build/Payload/VortexBrowser.app/VortexBrowser
           chmod +x build/Payload/VortexBrowser.app/VortexBrowser
-
-          # Copy resources
           cp platform/iOS/Info.plist build/Payload/VortexBrowser.app/
           echo -n "APPLvBrs" > build/Payload/VortexBrowser.app/PkgInfo
 
-          # Create minimal CodeResources
+      - name: Create CodeSignature
+        run: |
           mkdir -p build/Payload/VortexBrowser.app/_CodeSignature
-          cat > build/Payload/VortexBrowser.app/_CodeSignature/CodeResources << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>files</key>
-    <dict/>
-    <key>files2</key>
-    <dict/>
-    <key>rules</key>
-    <dict>
-        <key>^.*</key>
-        <true/>
-    </dict>
-    <key>rules2</key>
-    <dict>
-        <key>^.*</key>
-        <true/>
-    </dict>
-</dict>
-</plist>
-EOF
-
           touch build/Payload/VortexBrowser.app/embedded.mobileprovision
 
       - name: Fake Sign with ldid
-        run: |
-          ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser || echo "ldid sign completed or failed (non-blocking)"
+        run: ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser || true
 
       - name: Package TIPA
         run: |
           cd build
           zip -r VortexBrowser.tipa Payload/
           ls -lh VortexBrowser.tipa
-          unzip -l VortexBrowser.tipa
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
