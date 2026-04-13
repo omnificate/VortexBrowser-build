@@ -252,24 +252,11 @@ jobs:
           fi
           
           TIPA_SIZE=$(ls -lh build/VortexBrowser.tipa | awk '{print $5}')
+          NOTES="Vortex Browser ${{ github.ref_name }} - Engine: $ENGINE, iOS 16.0+, arm64. All tests passed. Install with TrollStore."
           
           gh release create ${{ github.ref_name }} build/VortexBrowser.tipa \
             --title "VortexBrowser ${{ github.ref_name }}" \
-            --notes "## Vortex Browser ${{ github.ref_name }}
-
-### Engine
-- **Type:** $ENGINE
-- **iOS Version:** 16.0+
-- **Architecture:** arm64
-
-### Automated Tests
-✅ All tests passed
-
-### Installation
-Install with TrollStore on iOS 16.0+
-
-### Size
-$TIPA_SIZE" \
+            --notes "$NOTES" \
             || echo "Release may exist"
           
           echo "Release: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/VortexBrowser.tipa"
