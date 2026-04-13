@@ -72,6 +72,19 @@ jobs:
             -I./include -I./platform/iOS \
             -c src/Renderer.mm -o build/Renderer.o
 
+          # Compile Scene Delegate (iOS 13+ scene lifecycle)
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -fobjc-arc -fmodules \
+            -std=c++20 -stdlib=libc++ \
+            -I./include -I./platform/iOS \
+            -c platform/iOS/SceneDelegate.m -o build/SceneDelegate.o
+
+          # Compile main.m entry point
+          clang -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -fobjc-arc -fmodules \
+            -I./include -I./platform/iOS \
+            -c platform/iOS/main.m -o build/main.o
+
           # Compile Metal shaders
           xcrun -sdk iphoneos metal -c shaders/VortexShaders.metal -o build/VortexShaders.air || echo "Metal compile failed (non-fatal)"
           if [ -f build/VortexShaders.air ]; then
@@ -85,7 +98,7 @@ jobs:
             -framework QuartzCore -framework CoreGraphics -framework CoreText \
             -stdlib=libc++ -fobjc-arc -fobjc-link-runtime \
             build/Engine.o build/HTMLParser.o build/CSS.o build/Layout.o build/JavaScript.o \
-            build/VortexBrowserApp.o build/Renderer.o \
+            build/VortexBrowserApp.o build/Renderer.o build/SceneDelegate.o build/main.o \
             -o build/Payload/VortexBrowser.app/VortexBrowser
 
           file build/Payload/VortexBrowser.app/VortexBrowser

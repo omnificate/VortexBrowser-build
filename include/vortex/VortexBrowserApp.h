@@ -20,7 +20,7 @@
 
 @end
 
-@interface VortexBrowserViewController : UIViewController
+@interface VortexBrowserViewController : UIViewController <UITextFieldDelegate>
 
 @property (nonatomic, strong) VortexView* vortexView;
 @property (nonatomic, strong) UITextField* urlBar;
@@ -33,6 +33,15 @@
 @end
 
 @interface VortexAppDelegate : UIResponder <UIApplicationDelegate>
+
+@property (nonatomic, strong) UIWindow* window;
+@property (nonatomic, strong) VortexBrowserViewController* browserVC;
+
+@end
+
+// Scene Delegate for iOS 13+ scene-based lifecycle
+API_AVAILABLE(ios(13.0))
+@interface VortexSceneDelegate : UIResponder <UIWindowSceneDelegate>
 
 @property (nonatomic, strong) UIWindow* window;
 @property (nonatomic, strong) VortexBrowserViewController* browserVC;
