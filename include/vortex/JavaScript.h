@@ -127,6 +127,7 @@ public:
         void dispatchEvent(const std::string& type, const DOMNodePtr& target);
         
     private:
+        DOMNode* document_;
         std::unordered_map<DOMNodePtr, std::unordered_map<std::string, std::vector<EventCallback>>> listeners_;
     };
 };
