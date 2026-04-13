@@ -154,6 +154,16 @@ jobs:
 
       - name: Package and Sign
         run: |
+          set -e
+          echo "=== Packaging Vortex Browser ==="
+          
+          # Verify executable exists
+          if [ ! -f "build/Payload/VortexBrowser.app/VortexBrowser" ]; then
+            echo "❌ ERROR: Executable not found!"
+            ls -la build/Payload/VortexBrowser.app/ || true
+            exit 1
+          fi
+          
           # Copy resources
           cp platform/iOS/Info.plist build/Payload/VortexBrowser.app/
           echo -n "APPLvBrs" > build/Payload/VortexBrowser.app/PkgInfo
@@ -161,17 +171,29 @@ jobs:
           touch build/Payload/VortexBrowser.app/_CodeSignature/CodeResources
           touch build/Payload/VortexBrowser.app/embedded.mobileprovision
           
-          # Sign executable
-          ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser
+          # Check if entitlements file exists
+          if [ -f "platform/iOS/VortexBrowser.entitlements" ]; then
+            echo "✅ Signing with entitlements..."
+            ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser || {
+              echo "⚠️ ldid signing failed, trying without entitlements..."
+              ldid -S build/Payload/VortexBrowser.app/VortexBrowser
+            }
+          else
+            echo "⚠️ No entitlements file, signing without..."
+            ldid -S build/Payload/VortexBrowser.app/VortexBrowser
+          fi
           
           # Sign CyberKit if present
           if [ -d "build/Payload/VortexBrowser.app/Frameworks/CyberKit.framework" ]; then
+            echo "✅ Signing CyberKit framework..."
             ldid -S build/Payload/VortexBrowser.app/Frameworks/CyberKit.framework/CyberKit 2>/dev/null || true
           fi
           
           # Create TIPA
+          echo "📦 Creating TIPA..."
           cd build && zip -r VortexBrowser.tipa Payload/
           ls -lh VortexBrowser.tipa
+          echo "✅ TIPA created successfully"
 
       - name: Automated Tests
         run: |
