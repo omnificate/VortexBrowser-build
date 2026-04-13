@@ -2,6 +2,7 @@ name: Build Vortex with REAL CyberKit
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
   workflow_dispatch:
