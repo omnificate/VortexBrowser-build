@@ -9,6 +9,7 @@ struct Color {
     Color() : vec(simd_make_float4(0, 0, 0, 1)) {}
     Color(float r, float g, float b, float a = 1.0f) 
         : vec(simd_make_float4(r, g, b, a)) {}
+    explicit Color(simd_float4 v) : vec(v) {}
     
     float r() const { return vec[0]; }
     float g() const { return vec[1]; }

@@ -25,6 +25,7 @@ struct DOMNode {
 
 class HTMLParser {
 public:
+    HTMLParser() : pos_(0) { initCharClass(); }
     DOMNodePtr parse(const std::string& html);
     
 private:
@@ -52,7 +53,7 @@ private:
         char_class_[static_cast<unsigned char>('\n')] = CHAR_SPACE;
         char_class_[static_cast<unsigned char>('\r')] = CHAR_SPACE;
         char_class_[static_cast<unsigned char>('"')] = CHAR_QUOTE;
-        char_class_[static_cast<unsigned char>(''')] = CHAR_APOS;
+        char_class_[static_cast<unsigned char>(39)] = CHAR_APOS;  // 39 = '
         char_class_[static_cast<unsigned char>('=')] = CHAR_EQ;
     }
     
@@ -63,6 +64,7 @@ private:
     std::string parseText(const std::string& html);
     std::string parseTagName(const std::string& html);
     std::unordered_map<std::string, std::string> parseAttributes(const std::string& html);
+    void skipWhitespace(const std::string& html);
 };
 
 } // namespace Vortex

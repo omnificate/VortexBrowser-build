@@ -1,10 +1,26 @@
 #pragma once
 #include "Layout.h"
+#include "Color.h"
 #include <simd/simd.h>
-#include <Metal/Metal.h>
-#include <QuartzCore/CAMetalLayer.h>
 #include <vector>
 #include <memory>
+
+// Forward declarations for Metal types to avoid including Metal.h in C++ headers
+#ifdef __OBJC__
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
+#else
+// Opaque types for C++
+typedef void* id_MTLDevice;
+typedef void* id_MTLBuffer;
+typedef void* id_MTLTexture;
+typedef void* id_MTLCommandQueue;
+typedef void* id_MTLRenderPipelineState;
+typedef void* id_MTLDepthStencilState;
+typedef void* id_MTLRenderCommandEncoder;
+typedef void* id_MTLCommandBuffer;
+typedef void* CAMetalLayer;
+#endif
 
 namespace Vortex {
 
@@ -22,14 +38,22 @@ struct RenderCommand {
 };
 
 struct GPUBuffer {
+#ifdef __OBJC__
     id<MTLBuffer> buffer;
+#else
+    id_MTLBuffer buffer;
+#endif
     size_t size;
     size_t used;
     uint32_t frame_id;
 };
 
 struct TextureCache {
+#ifdef __OBJC__
     id<MTLTexture> texture;
+#else
+    id_MTLTexture texture;
+#endif
     uint64_t hash;
     uint32_t last_used_frame;
     simd_float2 size;
@@ -40,7 +64,11 @@ public:
     MetalRenderer();
     ~MetalRenderer();
     
+#ifdef __OBJC__
     bool initialize(id<MTLDevice> device, CAMetalLayer* layer);
+#else
+    bool initialize(id_MTLDevice device, CAMetalLayer* layer);
+#endif
     void shutdown();
     
     void beginFrame();
@@ -53,9 +81,19 @@ public:
     void clear(const Color& color);
     
     // GPU resource management
+#ifdef __OBJC__
     id<MTLBuffer> allocateBuffer(size_t size, uint32_t frame_id);
     id<MTLTexture> getCachedTexture(uint64_t hash, simd_float2 size);
     void updateTextureCache(uint64_t hash, id<MTLTexture> texture, simd_float2 size);
+    void encodeRenderCommands(id<MTLRenderCommandEncoder> encoder);
+    void renderRect(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
+    void renderText(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
+    void renderImage(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
+#else
+    id_MTLBuffer allocateBuffer(size_t size, uint32_t frame_id);
+    id_MTLTexture getCachedTexture(uint64_t hash, simd_float2 size);
+    void updateTextureCache(uint64_t hash, id_MTLTexture texture, simd_float2 size);
+#endif
     
     void flushTextureCache();
     
@@ -69,11 +107,18 @@ public:
     std::vector<simd_float4> getDamageRects() const;
     
 private:
+#ifdef __OBJC__
     id<MTLDevice> device_;
     id<MTLCommandQueue> command_queue_;
-    CAMetalLayer* metal_layer_;
     id<MTLRenderPipelineState> pipeline_state_;
     id<MTLDepthStencilState> depth_state_;
+#else
+    id_MTLDevice device_;
+    id_MTLCommandQueue command_queue_;
+    id_MTLRenderPipelineState pipeline_state_;
+    id_MTLDepthStencilState depth_state_;
+#endif
+    CAMetalLayer* metal_layer_;
     
     std::vector<GPUBuffer> buffer_pool_;
     std::vector<TextureCache> texture_cache_;
@@ -84,13 +129,13 @@ private:
     int tile_width_;
     int tile_height_;
     
-    void encodeRenderCommands(id<MTLRenderCommandEncoder> encoder);
-    void renderRect(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
-    void renderText(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
-    void renderImage(const RenderCommand& cmd, id<MTLRenderCommandEncoder> encoder);
-    
+#ifdef __OBJC__
     id<MTLBuffer> getQuadVertexBuffer();
     id<MTLBuffer> getQuadIndexBuffer();
+#else
+    id_MTLBuffer getQuadVertexBuffer();
+    id_MTLBuffer getQuadIndexBuffer();
+#endif
 };
 
 // Damage tracker for incremental rendering
