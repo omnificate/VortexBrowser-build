@@ -1,5 +1,6 @@
 #pragma once
 #include "CSS.h"
+#include "HTMLParser.h"
 #include <simd/simd.h>
 #include <vector>
 #include <memory>
