@@ -160,10 +160,4 @@ std::unordered_map<std::string, std::string> HTMLParser::parseAttributes(const s
     return attrs;
 }
 
-void HTMLParser::skipWhitespace(const std::string& html) {
-    while (pos_ < html.size() && isspace(html[pos_])) {
-        ++pos_;
-    }
-}
-
 } // namespace Vortex
