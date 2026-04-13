@@ -6,7 +6,7 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "../include/vortex/VortexBrowserApp.h"
+#import "vortex/VortexBrowserApp.h"
 
 // For iOS 13+, use scene-based lifecycle
 // For older iOS, use traditional app delegate
