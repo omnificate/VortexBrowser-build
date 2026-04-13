@@ -16,37 +16,94 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ldid
-        run: brew install ldid
+      - name: Install dependencies
+        run: |
+          brew install ldid
+          xcode-select -p
 
-      - name: Build App Structure
+      - name: Compile Vortex Engine
         run: |
           mkdir -p build/Payload/VortexBrowser.app
-          echo "VortexBrowser Placeholder" > build/Payload/VortexBrowser.app/VortexBrowser
-          chmod +x build/Payload/VortexBrowser.app/VortexBrowser
+
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "Using SDK: $SDK_PATH"
+
+          # Compile C++ engine sources to object files
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -ffast-math -fobjc-arc \
+            -std=c++20 -stdlib=libc++ \
+            -I./include -I./platform/iOS \
+            -c src/Engine.cpp -o build/Engine.o
+
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -ffast-math \
+            -std=c++20 -stdlib=libc++ \
+            -I./include \
+            -c src/Layout.cpp -o build/Layout.o
+
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -ffast-math \
+            -std=c++20 -stdlib=libc++ \
+            -I./include \
+            -c src/CSS.cpp -o build/CSS.o
+
+          # Compile Objective-C++ app files
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -fobjc-arc -fmodules \
+            -std=c++20 -stdlib=libc++ \
+            -I./include -I./platform/iOS \
+            -c src/VortexBrowserApp.mm -o build/VortexBrowserApp.o
+
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -O3 -fobjc-arc -fmodules \
+            -std=c++20 -stdlib=libc++ \
+            -I./include -I./platform/iOS \
+            -c src/Renderer.mm -o build/Renderer.o
+
+          # Compile Metal shaders
+          xcrun -sdk iphoneos metal -c shaders/VortexShaders.metal -o build/VortexShaders.air || echo "Metal compile failed (non-fatal)"
+          if [ -f build/VortexShaders.air ]; then
+            xcrun -sdk iphoneos metal-ar r build/VortexShaders.metalar build/VortexShaders.air || true
+            xcrun -sdk iphoneos metallib build/VortexShaders.metalar -o build/Payload/VortexBrowser.app/VortexShaders.metallib || true
+          fi
+
+          # Link into Mach-O executable
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=14.0 \
+            -framework Foundation -framework UIKit -framework Metal -framework MetalKit \
+            -framework QuartzCore -framework CoreGraphics -framework CoreText \
+            -stdlib=libc++ -fobjc-arc -fobjc-link-runtime \
+            build/Engine.o build/Layout.o build/CSS.o \
+            build/VortexBrowserApp.o build/Renderer.o \
+            -o build/Payload/VortexBrowser.app/VortexBrowser
+
+          file build/Payload/VortexBrowser.app/VortexBrowser
+          ls -lh build/Payload/VortexBrowser.app/VortexBrowser
+
+      - name: Copy Resources
+        run: |
           cp platform/iOS/Info.plist build/Payload/VortexBrowser.app/
           echo -n "APPLvBrs" > build/Payload/VortexBrowser.app/PkgInfo
-
-      - name: Create CodeSignature
-        run: |
           mkdir -p build/Payload/VortexBrowser.app/_CodeSignature
           touch build/Payload/VortexBrowser.app/embedded.mobileprovision
 
       - name: Fake Sign with ldid
-        run: ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser || true
+        run: |
+          ldid -Splatform/iOS/VortexBrowser.entitlements build/Payload/VortexBrowser.app/VortexBrowser
+          echo "ldid exit code: $?"
 
       - name: Package TIPA
         run: |
           cd build
           zip -r VortexBrowser.tipa Payload/
           ls -lh VortexBrowser.tipa
+          echo "=== TIPA contents ==="
+          unzip -l VortexBrowser.tipa
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: VortexBrowser-tipa
           path: build/VortexBrowser.tipa
-          retention-days: 30
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
