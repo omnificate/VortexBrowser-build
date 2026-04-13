@@ -1,204 +1,240 @@
-// VortexCyberKitApp.mm - CyberKit WebKit Port Integration
-// Uses custom WebKit engine instead of Apple's WKWebView
-
 #import <UIKit/UIKit.h>
-#import <WebKit/WebKit.h>
+#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
 
-// Try to import CyberKit headers if available
-#if __has_include(<CyberKit/WKWebView.h>)
-  #import <CyberKit/WKWebView.h>
-  #define USE_CYBERKIT 1
-  #define VORTEX_WEBVIEW CyberWebView
-  typedef CyberWebView VortexWebViewClass;
+// Try to import CyberKit, fallback to system WebKit
+#if __has_include(<CyberKit/CyberKit.h>)
+    #import <CyberKit/CyberKit.h>
+    #define USE_CYBERKIT 1
+    #define WEBVIEW_CLASS CyberWebView
+    #define WEBVIEW_CONFIGURATION CyberWebViewConfiguration
+    #define WEBVIEW_UIDELEGATE CyberWebUIDelegate
+    #define WEBVIEW_NAVIGATIONDELEGATE CyberWebNavigationDelegate
 #else
-  #define USE_CYBERKIT 0
-  #define VORTEX_WEBVIEW WKWebView
-  typedef WKWebView VortexWebViewClass;
+    #import <WebKit/WebKit.h>
+    #define USE_CYBERKIT 0
+    #define WEBVIEW_CLASS WKWebView
+    #define WEBVIEW_CONFIGURATION WKWebViewConfiguration
+    #define WEBVIEW_UIDELEGATE WKUIDelegate
+    #define WEBVIEW_NAVIGATIONDELEGATE WKNavigationDelegate
 #endif
 
-#import <CoreGraphics/CoreGraphics.h>
-#import <QuartzCore/QuartzCore.h>
+// MARK: - VortexCyberKitWebViewController
+@interface VortexCyberKitWebViewController : UIViewController <UITextFieldDelegate, WEBVIEW_UIDELEGATE, WEBVIEW_NAVIGATIONDELEGATE>
 
-@interface VortexBrowserViewController : UIViewController <WKNavigationDelegate, UITextFieldDelegate>
-@property (nonatomic, strong) VortexWebViewClass *webView;
+@property (nonatomic, strong) WEBVIEW_CLASS *webView;
 @property (nonatomic, strong) UITextField *urlBar;
+@property (nonatomic, strong) UIView *toolbar;
 @property (nonatomic, strong) UIProgressView *progressBar;
-@property (nonatomic, strong) UIToolbar *toolbar;
-@property (nonatomic, strong) UIBarButtonItem *backButton;
-@property (nonatomic, strong) UIBarButtonItem *forwardButton;
-@property (nonatomic, strong) UIBarButtonItem *reloadButton;
-@property (nonatomic, strong) UILabel *engineLabel;
+@property (nonatomic, strong) UIButton *backButton;
+@property (nonatomic, strong) UIButton *forwardButton;
+@property (nonatomic, strong) UIButton *reloadButton;
+@property (nonatomic, strong) UILabel *statusLabel;
+
+- (void)navigateToURL:(NSString *)urlString;
+- (void)updateProgress:(double)progress;
+- (void)setupToolbar;
+
 @end
 
-@implementation VortexBrowserViewController
+@implementation VortexCyberKitWebViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     
-    // Show which engine is active
-    [self setupEngineIndicator];
-    
-    // Setup URL bar
+    // Setup UI
     [self setupURLBar];
-    
-    // Setup WebView (CyberKit or WKWebView)
-    [self setupWebView];
-    
-    // Setup toolbar
     [self setupToolbar];
+    [self setupWebView];
+    [self setupProgressBar];
+    [self setupStatusLabel];
+    
+    // Layout
+    [self layoutSubviews];
     
     // Load initial page
-    [self loadURL:@"https://www.google.com"];
-}
-
-- (void)setupEngineIndicator {
-    self.engineLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 200, 20)];
-    self.engineLabel.center = CGPointMake(self.view.bounds.size.width / 2, 30);
-    self.engineLabel.textAlignment = NSTextAlignmentCenter;
-    self.engineLabel.font = [UIFont boldSystemFontOfSize:12];
-    self.engineLabel.alpha = 0.7;
-    
-#if USE_CYBERKIT
-    self.engineLabel.text = @"⚡ CyberKit WebKit Engine";
-    self.engineLabel.textColor = [UIColor systemGreenColor];
-#else
-    self.engineLabel.text = @"⚠ Fallback WKWebView";
-    self.engineLabel.textColor = [UIColor systemOrangeColor];
-#endif
-    
-    [self.view addSubview:self.engineLabel];
+    [self navigateToURL:@"https://www.google.com"];
 }
 
 - (void)setupURLBar {
-    CGFloat topSafe = 44;
-    if (@available(iOS 11.0, *)) {
-        topSafe = self.view.safeAreaInsets.top + 30;
-    }
-    
-    UIView *urlBarContainer = [[UIView alloc] initWithFrame:CGRectMake(0, topSafe, self.view.bounds.size.width, 50)];
-    urlBarContainer.backgroundColor = [UIColor secondarySystemBackgroundColor];
-    urlBarContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    
-    self.urlBar = [[UITextField alloc] initWithFrame:CGRectMake(8, 8, self.view.bounds.size.width - 16, 34)];
+    self.urlBar = [[UITextField alloc] init];
     self.urlBar.borderStyle = UITextBorderStyleRoundedRect;
-    self.urlBar.placeholder = @"Search or enter address";
     self.urlBar.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    self.urlBar.autocorrectionType = UITextAutocorrectionTypeNo;
     self.urlBar.keyboardType = UIKeyboardTypeURL;
     self.urlBar.returnKeyType = UIReturnKeyGo;
+    self.urlBar.placeholder = @"Enter URL or search";
     self.urlBar.delegate = self;
-    self.urlBar.clearButtonMode = UITextFieldViewModeWhileEditing;
-    self.urlBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    
-    [urlBarContainer addSubview:self.urlBar];
-    [self.view addSubview:urlBarContainer];
-}
-
-- (void)setupWebView {
-    CGFloat topSafe = 44;
-    CGFloat bottomSafe = 0;
-    if (@available(iOS 11.0, *)) {
-        topSafe = self.view.safeAreaInsets.top + 80;
-        bottomSafe = self.view.safeAreaInsets.bottom;
-    }
-    
-    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    config.allowsInlineMediaPlayback = YES;
-    config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
-    
-    // Use CyberKit preferences if available
-#if USE_CYBERKIT
-    // CyberKit-specific configuration
-    config.preferences.javaScriptEnabled = YES;
-    // Additional CyberKit optimizations
-#else
-    WKPreferences *prefs = [[WKPreferences alloc] init];
-    prefs.javaScriptEnabled = YES;
-    config.preferences = prefs;
-#endif
-
-    CGRect webViewFrame = CGRectMake(0, topSafe, 
-                                     self.view.bounds.size.width, 
-                                     self.view.bounds.size.height - topSafe - 44 - bottomSafe);
-    
-    // Create the appropriate WebView class
-    self.webView = [[VortexWebViewClass alloc] initWithFrame:webViewFrame configuration:config];
-    
-    // Configure navigation delegate
-    self.webView.navigationDelegate = self;
-    self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    self.webView.backgroundColor = [UIColor systemBackgroundColor];
-    
-    // Add progress observer
-    [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:nil];
-    [self.webView addObserver:self forKeyPath:@"URL" options:NSKeyValueObservingOptionNew context:nil];
-    
-    [self.view addSubview:self.webView];
-    
-    // Progress bar
-    self.progressBar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
-    self.progressBar.frame = CGRectMake(0, topSafe, self.view.bounds.size.width, 2);
-    self.progressBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    self.progressBar.progressTintColor = [UIColor systemBlueColor];
-    self.progressBar.trackTintColor = [UIColor clearColor];
-    [self.view addSubview:self.progressBar];
+    self.urlBar.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.urlBar.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.urlBar];
 }
 
 - (void)setupToolbar {
-    CGFloat toolbarHeight = 44.0;
-    CGFloat bottomSafe = 0;
-    if (@available(iOS 11.0, *)) {
-        bottomSafe = self.view.safeAreaInsets.bottom;
-    }
-    CGFloat yPosition = self.view.bounds.size.height - toolbarHeight - bottomSafe;
-    
-    self.toolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, yPosition, self.view.bounds.size.width, toolbarHeight)];
-    self.toolbar.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+    self.toolbar = [[UIView alloc] init];
+    self.toolbar.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.toolbar.translatesAutoresizingMaskIntoConstraints = NO;
     
     // Back button
-    self.backButton = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"chevron.backward"] 
-                                                       style:UIBarButtonItemStylePlain 
-                                                      target:self 
-                                                      action:@selector(goBack)];
-    self.backButton.enabled = NO;
+    self.backButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.backButton setTitle:@"←" forState:UIControlStateNormal];
+    self.backButton.titleLabel.font = [UIFont systemFontOfSize:24];
+    [self.backButton addTarget:self action:@selector(goBack) forControlEvents:UIControlEventTouchUpInside];
+    self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.toolbar addSubview:self.backButton];
     
     // Forward button
-    self.forwardButton = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"chevron.forward"] 
-                                                          style:UIBarButtonItemStylePlain 
-                                                         target:self 
-                                                         action:@selector(goForward)];
-    self.forwardButton.enabled = NO;
+    self.forwardButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.forwardButton setTitle:@"→" forState:UIControlStateNormal];
+    self.forwardButton.titleLabel.font = [UIFont systemFontOfSize:24];
+    [self.forwardButton addTarget:self action:@selector(goForward) forControlEvents:UIControlEventTouchUpInside];
+    self.forwardButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.toolbar addSubview:self.forwardButton];
     
     // Reload button
-    self.reloadButton = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.clockwise"] 
-                                                         style:UIBarButtonItemStylePlain 
-                                                        target:self 
-                                                        action:@selector(reload)];
+    self.reloadButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.reloadButton setTitle:@"↻" forState:UIControlStateNormal];
+    self.reloadButton.titleLabel.font = [UIFont systemFontOfSize:24];
+    [self.reloadButton addTarget:self action:@selector(reloadPage) forControlEvents:UIControlEventTouchUpInside];
+    self.reloadButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.toolbar addSubview:self.reloadButton];
     
-    UIBarButtonItem *flexibleSpace = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace 
-                                                                                   target:nil 
-                                                                                   action:nil];
-    
-    [self.toolbar setItems:@[self.backButton, flexibleSpace, self.forwardButton, flexibleSpace, self.reloadButton]];
     [self.view addSubview:self.toolbar];
 }
 
-- (void)loadURL:(NSString *)urlString {
-    NSString *processedURL = urlString;
-    if (![urlString hasPrefix:@"http://"] && ![urlString hasPrefix:@"https://"]) {
-        if ([urlString containsString:@"."]) {
-            processedURL = [NSString stringWithFormat:@"https://%@", urlString];
-        } else {
-            processedURL = [NSString stringWithFormat:@"https://www.google.com/search?q=%@", 
-                           [urlString stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]];
-        }
+- (void)setupWebView {
+    WEBVIEW_CONFIGURATION *config = [[WEBVIEW_CONFIGURATION alloc] init];
+    
+    // Enable JavaScript
+    [config preferences].javaScriptEnabled = YES;
+    
+    // Create webview
+    self.webView = [[WEBVIEW_CLASS alloc] initWithFrame:CGRectZero configuration:config];
+    self.webView.UIDelegate = self;
+    self.webView.navigationDelegate = self;
+    self.webView.allowsBackForwardNavigationGestures = YES;
+    self.webView.translatesAutoresizingMaskIntoConstraints = NO;
+    
+    #if USE_CYBERKIT
+    NSLog(@"[Vortex] Using CyberKit WebKit port");
+    #else
+    NSLog(@"[Vortex] Using system WebKit (CyberKit fallback)");
+    #endif
+    
+    [self.view addSubview:self.webView];
+    
+    // Add progress observer
+    [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:nil];
+    [self.webView addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:nil];
+}
+
+- (void)setupProgressBar {
+    self.progressBar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
+    self.progressBar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.progressBar.progress = 0.0;
+    [self.view addSubview:self.progressBar];
+}
+
+- (void)setupStatusLabel {
+    self.statusLabel = [[UILabel alloc] init];
+    self.statusLabel.font = [UIFont systemFontOfSize:10];
+    self.statusLabel.textColor = [UIColor secondaryLabelColor];
+    self.statusLabel.textAlignment = NSTextAlignmentCenter;
+    self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    
+    #if USE_CYBERKIT
+    self.statusLabel.text = @"CyberKit WebKit | iOS 16+";
+    #else
+    self.statusLabel.text = @"System WebKit (CyberKit Fallback) | iOS 16+";
+    #endif
+    
+    [self.view addSubview:self.statusLabel];
+}
+
+- (void)layoutSubviews {
+    CGFloat statusBarHeight = 44;
+    if (@available(iOS 13.0, *)) {
+        statusBarHeight = self.view.window.windowScene.statusBarManager.statusBarFrame.size.height;
     }
     
-    NSURL *url = [NSURL URLWithString:processedURL];
+    CGFloat toolbarHeight = 44;
+    CGFloat urlBarHeight = 36;
+    CGFloat progressBarHeight = 2;
+    CGFloat statusLabelHeight = 16;
+    
+    [NSLayoutConstraint activateConstraints:@[
+        // URL Bar
+        [self.urlBar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
+        [self.urlBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
+        [self.urlBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+        [self.urlBar.heightAnchor constraintEqualToConstant:urlBarHeight],
+        
+        // Toolbar
+        [self.toolbar.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
+        [self.toolbar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.toolbar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.toolbar.heightAnchor constraintEqualToConstant:toolbarHeight],
+        
+        // Toolbar buttons
+        [self.backButton.leadingAnchor constraintEqualToAnchor:self.toolbar.leadingAnchor constant:20],
+        [self.backButton.centerYAnchor constraintEqualToAnchor:self.toolbar.centerYAnchor],
+        
+        [self.forwardButton.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:40],
+        [self.forwardButton.centerYAnchor constraintEqualToAnchor:self.toolbar.centerYAnchor],
+        
+        [self.reloadButton.leadingAnchor constraintEqualToAnchor:self.forwardButton.trailingAnchor constant:40],
+        [self.reloadButton.centerYAnchor constraintEqualToAnchor:self.toolbar.centerYAnchor],
+        
+        // WebView
+        [self.webView.topAnchor constraintEqualToAnchor:self.urlBar.bottomAnchor constant:8],
+        [self.webView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.webView.bottomAnchor constraintEqualToAnchor:self.toolbar.topAnchor],
+        
+        // Progress Bar
+        [self.progressBar.topAnchor constraintEqualToAnchor:self.webView.topAnchor],
+        [self.progressBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.progressBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.progressBar.heightAnchor constraintEqualToConstant:progressBarHeight],
+        
+        // Status Label
+        [self.statusLabel.topAnchor constraintEqualToAnchor:self.progressBar.bottomAnchor constant:2],
+        [self.statusLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.statusLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.statusLabel.heightAnchor constraintEqualToConstant:statusLabelHeight]
+    ]];
+}
+
+// MARK: - Navigation
+
+- (void)navigateToURL:(NSString *)urlString {
+    NSString *trimmed = [urlString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    
+    if ([trimmed length] == 0) {
+        return;
+    }
+    
+    // Check if it's a search query or URL
+    NSURL *url;
+    if ([trimmed hasPrefix:@"http://"] || [trimmed hasPrefix:@"https://"]) {
+        url = [NSURL URLWithString:trimmed];
+    } else if ([trimmed containsString:@" "] || ![trimmed containsString:@"."]) {
+        // It's a search query
+        NSString *searchQuery = [trimmed stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+        NSString *googleURL = [NSString stringWithFormat:@"https://www.google.com/search?q=%@", searchQuery];
+        url = [NSURL URLWithString:googleURL];
+    } else {
+        // Assume https
+        NSString *fullURL = [NSString stringWithFormat:@"https://%@", trimmed];
+        url = [NSURL URLWithString:fullURL];
+    }
+    
     if (url) {
         NSURLRequest *request = [NSURLRequest requestWithURL:url];
         [self.webView loadRequest:request];
+        self.urlBar.text = trimmed;
     }
 }
 
@@ -214,82 +250,131 @@
     }
 }
 
-- (void)reload {
+- (void)reloadPage {
     [self.webView reload];
 }
 
 // MARK: - UITextFieldDelegate
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField {
+    [self navigateToURL:textField.text];
     [textField resignFirstResponder];
-    if (textField.text.length > 0) {
-        [self loadURL:textField.text];
-    }
     return YES;
-}
-
-// MARK: - WKNavigationDelegate
-
-- (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
-    self.progressBar.hidden = NO;
-    [self updateToolbarState];
-}
-
-- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    self.progressBar.hidden = YES;
-    self.urlBar.text = webView.URL.absoluteString;
-    [self updateToolbarState];
-}
-
-- (void)updateToolbarState {
-    self.backButton.enabled = [self.webView canGoBack];
-    self.forwardButton.enabled = [self.webView canGoForward];
 }
 
 // MARK: - KVO
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     if ([keyPath isEqualToString:@"estimatedProgress"]) {
-        self.progressBar.progress = self.webView.estimatedProgress;
-        self.progressBar.hidden = self.webView.estimatedProgress >= 1.0;
-    } else if ([keyPath isEqualToString:@"URL"]) {
-        self.urlBar.text = self.webView.URL.absoluteString;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.progressBar.progress = self.webView.estimatedProgress;
+            self.progressBar.hidden = (self.webView.estimatedProgress >= 1.0);
+        });
+    } else if ([keyPath isEqualToString:@"title"]) {
+        self.title = self.webView.title;
     }
 }
 
+// MARK: - WebView Delegate Methods
+
+#if USE_CYBERKIT
+// CyberKit delegates
+- (void)cyberWebView:(CyberWebView *)webView didStartProvisionalNavigation:(CyberWebNavigation *)navigation {
+    NSLog(@"[Vortex] CyberKit: Started loading");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = NO;
+        self.progressBar.progress = 0.1;
+    });
+}
+
+- (void)cyberWebView:(CyberWebView *)webView didFinishNavigation:(CyberWebNavigation *)navigation {
+    NSLog(@"[Vortex] CyberKit: Finished loading");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = YES;
+        self.urlBar.text = webView.URL.absoluteString;
+    });
+}
+
+- (void)cyberWebView:(CyberWebView *)webView didFailNavigation:(CyberWebNavigation *)navigation withError:(NSError *)error {
+    NSLog(@"[Vortex] CyberKit: Failed to load - %@", error.localizedDescription);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = YES;
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Load Error"
+                                                                       message:error.localizedDescription
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+    });
+}
+#else
+// System WebKit delegates
+- (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
+    NSLog(@"[Vortex] WebKit: Started loading");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = NO;
+        self.progressBar.progress = 0.1;
+    });
+}
+
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    NSLog(@"[Vortex] WebKit: Finished loading");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = YES;
+        self.urlBar.text = webView.URL.absoluteString;
+    });
+}
+
+- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+    NSLog(@"[Vortex] WebKit: Failed to load - %@", error.localizedDescription);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressBar.hidden = YES;
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Load Error"
+                                                                       message:error.localizedDescription
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+    });
+}
+#endif
+
 - (void)dealloc {
     [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
-    [self.webView removeObserver:self forKeyPath:@"URL"];
+    [self.webView removeObserver:self forKeyPath:@"title"];
 }
 
 @end
 
-// MARK: - App Delegate
+// MARK: - VortexAppDelegate
 @interface VortexAppDelegate : UIResponder <UIApplicationDelegate>
-@property (nonatomic, strong) UIWindow *window;
+@property (strong, nonatomic) UIWindow *window;
+@property (strong, nonatomic) VortexCyberKitWebViewController *browserVC;
 @end
 
 @implementation VortexAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    NSLog(@"[Vortex] Launching with CyberKit integration...");
+    NSLog(@"[Vortex] Launching with CyberKit WebKit port");
     
     self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     
-    VortexBrowserViewController *browserVC = [[VortexBrowserViewController alloc] init];
-    self.window.rootViewController = browserVC;
+    self.browserVC = [[VortexCyberKitWebViewController alloc] init];
+    self.browserVC.title = @"Vortex CyberKit";
+    
+    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:self.browserVC];
+    self.window.rootViewController = navController;
     
     [self.window makeKeyAndVisible];
     
-    NSLog(@"[Vortex] Browser ready");
     return YES;
 }
 
 @end
 
-// MARK: - main()
+// MARK: - main
 int main(int argc, char * argv[]) {
     @autoreleasepool {
+        NSLog(@"[Vortex] Starting Vortex Browser with CyberKit WebKit port");
+        NSLog(@"[Vortex] iOS 16.0+ compatible custom WebKit browser");
         return UIApplicationMain(argc, argv, nil, NSStringFromClass([VortexAppDelegate class]));
     }
 }
