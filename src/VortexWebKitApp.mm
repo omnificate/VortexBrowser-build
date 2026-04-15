@@ -1,31 +1,10 @@
-// VortexUnifiedApp.mm - SINGLE FILE with proper iOS 16+ SceneDelegate architecture
-// No duplicate classes. Works with both CyberKit and WebKit.
+// VortexWebKitApp.mm - WebKit-only version with SceneDelegate for iOS 16+
 #import <UIKit/UIKit.h>
-#import <Foundation/Foundation.h>
+#import <WebKit/WebKit.h>
 
-// Try to import CyberKit, fallback to system WebKit
-// Build system sets -DCYBERKIT_ENABLED=1 when CyberKit is available
-#ifdef CYBERKIT_ENABLED
-    #import <CyberKit/CyberKit.h>
-    #define USE_CYBERKIT 1
-    #define WEBVIEW_CLASS CyberWebView
-    #define WEBVIEW_CONFIGURATION CyberWebViewConfiguration
-    #define WEBVIEW_UIDELEGATE CyberWebUIDelegate
-    #define WEBVIEW_NAVIGATIONDELEGATE CyberWebNavigationDelegate
-    #define WEBVIEW_NAVIGATION CyberWebNavigation
-#else
-    #import <WebKit/WebKit.h>
-    #define USE_CYBERKIT 0
-    #define WEBVIEW_CLASS WKWebView
-    #define WEBVIEW_CONFIGURATION WKWebViewConfiguration
-    #define WEBVIEW_UIDELEGATE WKUIDelegate
-    #define WEBVIEW_NAVIGATIONDELEGATE WKNavigationDelegate
-    #define WEBVIEW_NAVIGATION WKNavigation
-#endif
-
-// MARK: - VortexWebViewController (works with both engines)
-@interface VortexWebViewController : UIViewController <UITextFieldDelegate, WEBVIEW_UIDELEGATE, WEBVIEW_NAVIGATIONDELEGATE>
-@property (nonatomic, strong) WEBVIEW_CLASS *webView;
+// MARK: - VortexWebViewController
+@interface VortexWebViewController : UIViewController <UITextFieldDelegate, WKUIDelegate, WKNavigationDelegate>
+@property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, strong) UITextField *urlBar;
 @property (nonatomic, strong) UIView *toolbar;
 @property (nonatomic, strong) UIProgressView *progressBar;
@@ -41,7 +20,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    NSLog(@"[Vortex] viewDidLoad - Engine: %@", USE_CYBERKIT ? @"CyberKit" : @"WebKit");
+    NSLog(@"[Vortex] viewDidLoad - WebKit Engine");
     
     self.view.backgroundColor = [UIColor systemBackgroundColor];
     
@@ -53,7 +32,6 @@
     [self setupStatusLabel];
     [self layoutSubviews];
     
-    // Load initial page
     [self performSelector:@selector(navigateToURL:) withObject:@"https://www.google.com" afterDelay:0.5];
 }
 
@@ -62,13 +40,8 @@
     self.engineLabel.font = [UIFont boldSystemFontOfSize:12];
     self.engineLabel.textAlignment = NSTextAlignmentCenter;
     self.engineLabel.translatesAutoresizingMaskIntoConstraints = NO;
-#if USE_CYBERKIT
-    self.engineLabel.text = @"Vortex Browser | CyberKit Engine";
-    self.engineLabel.textColor = [UIColor systemGreenColor];
-#else
     self.engineLabel.text = @"Vortex Browser | WebKit Engine";
     self.engineLabel.textColor = [UIColor systemBlueColor];
-#endif
     [self.view addSubview:self.engineLabel];
 }
 
@@ -91,21 +64,18 @@
     self.toolbar.backgroundColor = [UIColor secondarySystemBackgroundColor];
     self.toolbar.translatesAutoresizingMaskIntoConstraints = NO;
     
-    // Back button
     self.backButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.backButton setTitle:@"Back" forState:UIControlStateNormal];
     [self.backButton addTarget:self action:@selector(goBack) forControlEvents:UIControlEventTouchUpInside];
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.toolbar addSubview:self.backButton];
     
-    // Forward button
     self.forwardButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.forwardButton setTitle:@"Forward" forState:UIControlStateNormal];
     [self.forwardButton addTarget:self action:@selector(goForward) forControlEvents:UIControlEventTouchUpInside];
     self.forwardButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.toolbar addSubview:self.forwardButton];
     
-    // Reload button
     self.reloadButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.reloadButton setTitle:@"Reload" forState:UIControlStateNormal];
     [self.reloadButton addTarget:self action:@selector(reloadPage) forControlEvents:UIControlEventTouchUpInside];
@@ -118,15 +88,9 @@
 - (void)setupWebView {
     NSLog(@"[Vortex] Setting up WebView...");
     
-    WEBVIEW_CONFIGURATION *config = [[WEBVIEW_CONFIGURATION alloc] init];
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     
-#if USE_CYBERKIT
-    NSLog(@"[Vortex] Using REAL CyberKit WebKit");
-#else
-    NSLog(@"[Vortex] Using system WebKit");
-#endif
-    
-    self.webView = [[WEBVIEW_CLASS alloc] initWithFrame:CGRectZero configuration:config];
+    self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
     self.webView.UIDelegate = self;
     self.webView.navigationDelegate = self;
     self.webView.allowsBackForwardNavigationGestures = YES;
@@ -134,7 +98,6 @@
     
     [self.view addSubview:self.webView];
     
-    // Add KVO observers safely
     @try {
         [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:nil];
         [self.webView addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:nil];
@@ -169,37 +132,31 @@
     CGFloat engineLabelHeight = 16.0;
     
     [NSLayoutConstraint activateConstraints:@[
-        // Engine label at top
         [self.engineLabel.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:4],
         [self.engineLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.engineLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.engineLabel.heightAnchor constraintEqualToConstant:engineLabelHeight],
         
-        // URL Bar
         [self.urlBar.topAnchor constraintEqualToAnchor:self.engineLabel.bottomAnchor constant:4],
         [self.urlBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
         [self.urlBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
         [self.urlBar.heightAnchor constraintEqualToConstant:urlBarHeight],
         
-        // Progress bar
         [self.progressBar.topAnchor constraintEqualToAnchor:self.urlBar.bottomAnchor constant:4],
         [self.progressBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.progressBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.progressBar.heightAnchor constraintEqualToConstant:progressBarHeight],
         
-        // Status label
         [self.statusLabel.topAnchor constraintEqualToAnchor:self.progressBar.bottomAnchor constant:2],
         [self.statusLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.statusLabel.heightAnchor constraintEqualToConstant:statusLabelHeight],
         
-        // Toolbar at bottom
         [self.toolbar.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
         [self.toolbar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.toolbar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.toolbar.heightAnchor constraintEqualToConstant:toolbarHeight],
         
-        // Toolbar buttons
         [self.backButton.leadingAnchor constraintEqualToAnchor:self.toolbar.leadingAnchor constant:20],
         [self.backButton.centerYAnchor constraintEqualToAnchor:self.toolbar.centerYAnchor],
         [self.forwardButton.centerXAnchor constraintEqualToAnchor:self.toolbar.centerXAnchor],
@@ -207,7 +164,6 @@
         [self.reloadButton.trailingAnchor constraintEqualToAnchor:self.toolbar.trailingAnchor constant:-20],
         [self.reloadButton.centerYAnchor constraintEqualToAnchor:self.toolbar.centerYAnchor],
         
-        // WebView fills remaining space
         [self.webView.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:4],
         [self.webView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
@@ -280,29 +236,8 @@
     }
 }
 
-#pragma mark - WebView Delegates
+#pragma mark - WKNavigationDelegate
 
-#if USE_CYBERKIT
-- (void)cyberWebView:(CyberWebView *)webView didStartProvisionalNavigation:(CyberWebNavigation *)navigation {
-    NSLog(@"[Vortex] CyberKit: Started loading");
-    self.progressBar.hidden = NO;
-    self.progressBar.progress = 0.1;
-    self.statusLabel.text = @"Loading...";
-}
-
-- (void)cyberWebView:(CyberWebView *)webView didFinishNavigation:(CyberWebNavigation *)navigation {
-    NSLog(@"[Vortex] CyberKit: Finished loading");
-    self.progressBar.hidden = YES;
-    self.urlBar.text = webView.URL.absoluteString;
-    self.statusLabel.text = @"Ready";
-}
-
-- (void)cyberWebView:(CyberWebView *)webView didFailProvisionalNavigation:(CyberWebNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"[Vortex] CyberKit: Failed - %@", error.localizedDescription);
-    self.progressBar.hidden = YES;
-    self.statusLabel.text = [NSString stringWithFormat:@"Error: %@", error.localizedDescription];
-}
-#else
 - (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
     NSLog(@"[Vortex] WebKit: Started loading");
     self.progressBar.hidden = NO;
@@ -322,7 +257,6 @@
     self.progressBar.hidden = YES;
     self.statusLabel.text = [NSString stringWithFormat:@"Error: %@", error.localizedDescription];
 }
-#endif
 
 - (void)dealloc {
     @try {
@@ -335,7 +269,7 @@
 
 @end
 
-// MARK: - SceneDelegate (ONLY ONE - for iOS 16+ scene-based lifecycle)
+// MARK: - SceneDelegate (WebKit version)
 @interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property (strong, nonatomic) UIWindow *window;
 @end
@@ -343,27 +277,22 @@
 @implementation SceneDelegate
 
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
-    NSLog(@"[Vortex] SceneDelegate: willConnectToSession - iOS 16+ mode");
+    NSLog(@"[Vortex] SceneDelegate: willConnectToSession - WebKit mode");
     
     if (@available(iOS 13.0, *)) {
         UIWindowScene *windowScene = (UIWindowScene *)scene;
         
-        // Create window with window scene
         self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
         
-        // Create browser view controller
         VortexWebViewController *browserVC = [[VortexWebViewController alloc] init];
         browserVC.title = @"Vortex Browser";
         
-        // Create navigation controller
         UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:browserVC];
         
         self.window.rootViewController = navController;
         [self.window makeKeyAndVisible];
         
-        NSLog(@"[Vortex] Window created and made key+visible with CyberKit=%d", USE_CYBERKIT);
-    } else {
-        NSLog(@"[Vortex] ERROR: iOS 13+ required for SceneDelegate");
+        NSLog(@"[Vortex] Window created and made key+visible with WebKit");
     }
 }
 
