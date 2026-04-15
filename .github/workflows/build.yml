@@ -202,8 +202,10 @@ jobs:
             exit 1
           fi
           
-          # Create zip with verbose output
-          zip -rv VortexBrowser.tipa Payload/
+          # Create zip - use -y to store symlinks as symlinks (don't follow them!)
+          # CyberKit has circular symlinks that cause infinite recursion if followed
+          echo "📦 Creating TIPA (preserving symlinks)..."
+          zip -rvy VortexBrowser.tipa Payload/
           
           # Verify TIPA was created
           if [ ! -f "VortexBrowser.tipa" ]; then
