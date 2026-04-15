@@ -2,18 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- App ID -->
     <key>application-identifier</key>
-    <string>$(AppIdentifierPrefix)com.vortex.browser</string>
-    <key>com.apple.developer.kernel.increased-memory-limit</key>
-    <true/>
-    <key>com.apple.developer.web-browser.public.choose-archive.save-download</key>
-    <true/>
-    <key>keychain-access-groups</key>
-    <array>
-        <string>$(AppIdentifierPrefix)com.vortex.browser</string>
-    </array>
-    <key>get-task-allow</key>
-    <true/>
+    <string>com.vortex.browser</string>
+    
+    <!-- Team ID wildcard -->
+    <key>com.apple.developer.team-identifier</key>
+    <string>TEAM_ID_PLACEHOLDER</string>
+    
+    <!-- JIT for WebKit -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
@@ -22,5 +19,29 @@
     <true/>
     <key>com.apple.security.cs.debugger</key>
     <true/>
+    
+    <!-- Get task allow (debugging) -->
+    <key>get-task-allow</key>
+    <true/>
+    
+    <!-- Increased memory for WebKit -->
+    <key>com.apple.developer.kernel.increased-memory-limit</key>
+    <true/>
+    
+    <!-- Web browser entitlements -->
+    <key>com.apple.developer.web-browser</key>
+    <true/>
+    
+    <!-- Keychain -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>com.vortex.browser</string>
+    </array>
+    
+    <!-- App groups (for extensions) -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.vortex.browser</string>
+    </array>
 </dict>
 </plist>
