@@ -4,7 +4,8 @@
 #import <Foundation/Foundation.h>
 
 // Try to import CyberKit, fallback to system WebKit
-#if __has_include(<CyberKit/CyberKit.h>)
+// Build system sets -DCYBERKIT_ENABLED=1 when CyberKit is available
+#ifdef CYBERKIT_ENABLED
     #import <CyberKit/CyberKit.h>
     #define USE_CYBERKIT 1
     #define WEBVIEW_CLASS CyberWebView
@@ -12,7 +13,6 @@
     #define WEBVIEW_UIDELEGATE CyberWebUIDelegate
     #define WEBVIEW_NAVIGATIONDELEGATE CyberWebNavigationDelegate
     #define WEBVIEW_NAVIGATION CyberWebNavigation
-    #define WEBVIEW_DELEGATE_PREFIX cyber
 #else
     #import <WebKit/WebKit.h>
     #define USE_CYBERKIT 0
@@ -21,7 +21,6 @@
     #define WEBVIEW_UIDELEGATE WKUIDelegate
     #define WEBVIEW_NAVIGATIONDELEGATE WKNavigationDelegate
     #define WEBVIEW_NAVIGATION WKNavigation
-    #define WEBVIEW_DELEGATE_PREFIX web
 #endif
 
 // MARK: - VortexWebViewController (works with both engines)
