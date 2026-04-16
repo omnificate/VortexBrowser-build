@@ -1,8 +1,9 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 
-// Try to import CyberKit, fallback to system WebKit
-#if __has_include(<CyberKit/CyberKit.h>)
+// Use CYBERKIT_ENABLED macro from compiler (-DCYBERKIT_ENABLED=1)
+// __has_include doesn't work reliably with -F framework paths
+#if CYBERKIT_ENABLED
     #import <CyberKit/CyberKit.h>
     #define USE_CYBERKIT 1
     #define WEBVIEW_CLASS CyberWebView
