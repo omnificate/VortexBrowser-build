@@ -343,3 +343,38 @@
 }
 
 @end
+
+// MARK: - VortexAppDelegate
+@interface VortexAppDelegate : UIResponder <UIApplicationDelegate>
+@property (strong, nonatomic) UIWindow *window;
+@property (strong, nonatomic) VortexCyberKitWebViewController *browserVC;
+@end
+
+@implementation VortexAppDelegate
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    NSLog(@"[Vortex] Launching with CyberKit WebKit port");
+    
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    
+    self.browserVC = [[VortexCyberKitWebViewController alloc] init];
+    self.browserVC.title = @"Vortex CyberKit";
+    
+    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:self.browserVC];
+    self.window.rootViewController = navController;
+    
+    [self.window makeKeyAndVisible];
+    
+    return YES;
+}
+
+@end
+
+// MARK: - main
+int main(int argc, char * argv[]) {
+    @autoreleasepool {
+        NSLog(@"[Vortex] Starting Vortex Browser with CyberKit WebKit port");
+        NSLog(@"[Vortex] iOS 16.0+ compatible custom WebKit browser");
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass([VortexAppDelegate class]));
+    }
+}
