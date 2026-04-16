@@ -113,11 +113,12 @@ jobs:
           else
             echo "=== Compiling with WebKit fallback ==="
             
+            # Use VortexCyberKitApp.mm for both paths - it has __has_include logic
             clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=$IOS_DEPLOYMENT_TARGET \
               -O3 -fobjc-arc -fmodules \
               -std=c++20 -stdlib=libc++ \
               -I./include -I./platform/iOS \
-              -c src/VortexBrowserApp.mm -o build/VortexBrowserApp.o
+              -c src/VortexCyberKitApp.mm -o build/VortexBrowserApp.o
             
             CYBERKIT_FLAGS=""
           fi

@@ -343,3 +343,12 @@
 }
 
 @end
+
+// MARK: - main() entry point for iOS 16+ SceneDelegate architecture
+// UIApplicationMain bootstraps the app; Info.plist points to SceneDelegate
+int main(int argc, char *argv[]) {
+    @autoreleasepool {
+        NSLog(@"[Vortex] Starting Vortex Browser v2.1.0 - iOS 16+ SceneDelegate mode");
+        return UIApplicationMain(argc, argv, nil, nil);
+    }
+}
