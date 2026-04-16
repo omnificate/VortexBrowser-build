@@ -87,16 +87,23 @@ jobs:
             -I./include -I./platform/iOS \
             -c src/Renderer.mm -o build/Renderer.o 2>&1 || echo "Warning: Renderer compile issue"
           
-          # Compile main app - NO duplicate SceneDelegate (SceneDelegate.mm deleted!)
+          echo "Compiling SceneDelegate.mm..."
+          clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=$IOS_DEPLOYMENT_TARGET \
+            -O3 -fobjc-arc -fmodules \
+            -std=c++20 -stdlib=libc++ \
+            -I./include -I./platform/iOS \
+            -c src/SceneDelegate.mm -o build/SceneDelegate.o 2>&1 || echo "Warning: SceneDelegate compile issue"
+          
+          # Compile main app
           if [ "${{ env.cyberkit_available }}" == "true" ] && [ -d "cyberkit_frameworks/CyberKit.framework" ]; then
             echo "=== Compiling with REAL CyberKit ==="
             
-            # Use VortexCyberKitApp.mm - it has SceneDelegate built-in and worked in v2.0.8
             clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=$IOS_DEPLOYMENT_TARGET \
               -O3 -fobjc-arc -fmodules \
               -std=c++20 -stdlib=libc++ \
               -I./include -I./platform/iOS \
               -F"$(pwd)/cyberkit_frameworks" \
+              -DCYBERKIT_ENABLED=1 \
               -c src/VortexCyberKitApp.mm -o build/VortexBrowserApp.o
             
             # Copy CyberKit to app bundle
@@ -106,19 +113,18 @@ jobs:
           else
             echo "=== Compiling with WebKit fallback ==="
             
-            # Use VortexWebKitApp.mm - it has SceneDelegate built-in (no old AppDelegate)
             clang++ -arch arm64 -isysroot "$SDK_PATH" -mios-version-min=$IOS_DEPLOYMENT_TARGET \
               -O3 -fobjc-arc -fmodules \
               -std=c++20 -stdlib=libc++ \
               -I./include -I./platform/iOS \
-              -c src/VortexWebKitApp.mm -o build/VortexBrowserApp.o
+              -c src/VortexBrowserApp.mm -o build/VortexBrowserApp.o
             
             CYBERKIT_FLAGS=""
           fi
           
           # Link executable
           OBJ_FILES=""
-          for obj in build/Engine.o build/HTMLParser.o build/CSS.o build/Layout.o build/JavaScript.o build/Renderer.o; do
+          for obj in build/Engine.o build/HTMLParser.o build/CSS.o build/Layout.o build/JavaScript.o build/Renderer.o build/SceneDelegate.o; do
             [ -f "$obj" ] && OBJ_FILES="$OBJ_FILES $obj"
           done
           
