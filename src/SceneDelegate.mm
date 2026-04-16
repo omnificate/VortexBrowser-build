@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // Forward declarations
-@class VortexWebViewController;
+@class VortexCyberKitWebViewController;
 
 // MARK: - SceneDelegate for iOS 16+ scene-based lifecycle
 @interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
@@ -21,34 +21,39 @@
         self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
         
         // Get the browser view controller class from the app compilation
-        // The browser VC is defined in VortexCyberKitApp.mm or VortexBrowserApp.mm
-        Class browserVCClass = NSClassFromString(@"VortexWebViewController");
+        // The browser VC is defined in VortexCyberKitApp.mm
+        Class browserVCClass = NSClassFromString(@"VortexCyberKitWebViewController");
+        if (!browserVCClass) {
+            browserVCClass = NSClassFromString(@"VortexWebViewController");
+        }
         
         if (browserVCClass) {
             self.browserVC = [[browserVCClass alloc] init];
-            [(UIViewController *)self.browserVC setTitle:@"Vortex Browser"];
+            [(UIViewController *)self.browserVC setTitle:@"Vortex CyberKit"];
             
             // Create navigation controller
-            UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:self.browserVC];
+            Class navControllerClass = NSClassFromString(@"UINavigationController");
+            id navController = [[navControllerClass alloc] initWithRootViewController:self.browserVC];
             
             self.window.rootViewController = navController;
-            [self.window makeKeyAndVisible];
-            NSLog(@"[Vortex] Browser VC created and window visible");
         } else {
-            NSLog(@"[Vortex] ERROR: VortexWebViewController class not found!");
-            // Create a fallback
-            UIViewController *fallbackVC = [[UIViewController alloc] init];
-            fallbackVC.view.backgroundColor = [UIColor systemBackgroundColor];
+            NSLog(@"[Vortex] ERROR: Browser VC class not found!");
+            // Create a fallback alert
+            UIViewController *alertVC = [[UIViewController alloc] init];
+            alertVC.view.backgroundColor = [UIColor systemBackgroundColor];
+            
             UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, 100, 300, 100)];
-            label.text = @"Vortex Browser\nLoading...";
+            label.text = @"Vortex Browser\niOS 16+ Build\nCyberKit Engine";
             label.numberOfLines = 0;
             label.textAlignment = NSTextAlignmentCenter;
             label.font = [UIFont boldSystemFontOfSize:20];
-            [fallbackVC.view addSubview:label];
+            [alertVC.view addSubview:label];
             
-            self.window.rootViewController = fallbackVC;
-            [self.window makeKeyAndVisible];
+            self.window.rootViewController = alertVC;
         }
+        
+        [self.window makeKeyAndVisible];
+        NSLog(@"[Vortex] Window created and visible with scene");
     }
 }
 
